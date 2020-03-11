@@ -1,0 +1,104 @@
+org: your-org
+app: http-api
+service: surveys
+
+provider:
+  name: aws
+  runtime: python3.8
+  region: us-east-1
+  environment:
+    DYNAMODB_TABLE: surveys-${opt:stage, self:provider.stage}
+  httpApi:
+    cors: true
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - dynamodb:Scan
+        - dynamodb:Query
+        - dynamodb:PutItem
+        - dynamodb:UpdateItem
+        - dynamodb:GetItem
+      Resource: 
+        - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.DYNAMODB_TABLE}"
+        - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.DYNAMODB_TABLE}/index/sk-pk-index"
+functions:
+  createCustomer:
+    handler: backend/customers.create
+    events:
+      - httpApi:
+          path: /customer
+          method: post
+  getCustomer:
+    handler: backend/customers.get
+    events:
+      - httpApi:
+          path: /customer/{id}
+          method: get
+  createSurvey:
+    handler: backend/surveys.create
+    events:
+      - httpApi:
+          path: /survey
+          method: post
+  getSurvey:
+    handler: backend/surveys.get
+    events:
+      - httpApi:
+          path: /survey/{id}
+          method: get
+  getAllCustomerSurveys:
+    handler: backend/surveys.get_all
+    events:
+      - httpApi:
+          path: /customer/{id}/surveys
+          method: get
+  createResponse:
+    handler: backend/responses.create
+    events:
+      - httpApi:
+          path: /response
+          method: post
+  getResponse:
+    handler: backend/responses.get
+    events:
+      - httpApi:
+          path: /response/{id}
+          method: get
+  getAllResponses:
+    handler: backend/responses.get_all
+    events:
+      - httpApi:
+          path: /survey/{id}/responses
+          method: get
+
+resources:
+  Resources:
+    surveysTable: 
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:provider.environment.DYNAMODB_TABLE}
+        AttributeDefinitions:
+          - AttributeName: pk
+            AttributeType: S
+          - AttributeName: sk
+            AttributeType: S
+        KeySchema:
+          - AttributeName: pk
+            KeyType: HASH
+          - AttributeName: sk
+            KeyType: RANGE
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
+        GlobalSecondaryIndexes:
+        - IndexName: sk-pk-index
+          KeySchema:
+          - AttributeName: sk
+            KeyType: HASH
+          - AttributeName: pk
+            KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+          ProvisionedThroughput: 
+            ReadCapacityUnits: 1
+            WriteCapacityUnits: 1
